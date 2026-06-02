@@ -15,8 +15,6 @@ const cors = require('cors');
 const http = require('http');
 const app = express();
 const morgan = require('morgan');
-const path = require('path');
-
 // Initialize Socket.IO service
 const socketService = require('./services/socket.service');
 
