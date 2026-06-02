@@ -251,7 +251,6 @@ exports.getVisaById = async (req, res) => {
     }
 };
 
-// ✅ FIXED: Added uploads relationship to include image URLs
 exports.getVisas = async (req, res) => {
     try {
         let { page, limit, searchQuery, countryId, visaType, fromDate, toDate } = req.query;
@@ -281,13 +280,9 @@ exports.getVisas = async (req, res) => {
 
         const totalVisas = await db.Visa.count({ where });
 
-        // ✅ FIXED: Added uploads include
         const rows = await db.Visa.findAll({
             where,
-            include: [
-                { model: db.Country, as: 'country', required: false, attributes: ['name'] },
-                { model: db.VisaUploads, as: 'uploads', required: false, attributes: ['id', 'image_path'] }
-            ],
+            include: [{ model: db.Country, as: 'country', required: false, attributes: ['name'] }],
             limit, offset,
             order: [
                 [literal('`Visa`.`display_order` IS NULL, `Visa`.`display_order` ASC')],
