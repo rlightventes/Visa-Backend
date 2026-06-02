@@ -1,3 +1,11 @@
+const fs = require('fs');
+const path = require('path');
+
+// Create uploads folder if not exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
