@@ -202,7 +202,8 @@ exports.updateVisa = async (req, res) => {
                     // Get the file path from each images[x] entry
                     const file = req.files[key][0];
                     if (file && file.path) {
-                        visaImages.push(file.path);
+                        const url = await uploadToCloudinary(file.path);
+                         visaImages.push(url);
                     }
                 }
             });
