@@ -1,7 +1,7 @@
 {
   "name": "visa",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
@@ -10,8 +10,8 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
-   "dependencies": {
+  "description": "Visa management system backend",
+  "dependencies": {
     "cloudinary": "^2.0.0",
     "@google-cloud/vision": "^5.1.0",
     "@google/generative-ai": "^0.24.1",
@@ -34,13 +34,8 @@
     "sequelize": "^6.37.5",
     "socket.io": "^4.8.1",
     "zeptomail": "^6.2.1"
-    },
+  },
   "devDependencies": {
     "nodemon": "^3.1.9"
   }
-
-  }
-"scripts": {
-  "start": "node app.js",
-  "dev": "nodemon app.js"
 }
