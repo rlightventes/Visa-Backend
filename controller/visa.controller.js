@@ -60,33 +60,22 @@ exports.createVisa = async (req, res) => {
             }
         }
 
-        const visa = await db.Visa.create(
-            {
-                application_id: await getVisaApplicationCode(),
-                name,
-                country_id,
-                short_description,
-                detailed_description,
-                visa_type,
-                entry_type,
-                validity_days,
-                stay_duration_details,
-                discount_percent,
-                b2b_price: processedData.b2b_price,
-                b2b_processing_time: processedData.b2b_processing_time,
-                b2b_processing_type: processedData.b2b_processing_type,
-                b2b_discount: processedData.b2b_discount,
-                b2c_price: processedData.b2c_price,
-                b2c_processing_time: processedData.b2c_processing_time,
-                b2c_processing_type: processedData.b2c_processing_type,
-                b2c_discount: processedData.b2c_discount,
-                is_featured,
-                is_active,
-                display_order,
-                created_by: createdBy,
-            },
-            { transaction: t }
-        );
+        const visa = await db.Visa.create({
+            application_id: await getVisaApplicationCode(),
+            name, country_id, short_description, detailed_description,
+            visa_type, entry_type, validity_days, stay_duration_details,
+            discount_percent,
+            b2b_price: processedData.b2b_price,
+            b2b_processing_time: processedData.b2b_processing_time,
+            b2b_processing_type: processedData.b2b_processing_type,
+            b2b_discount: processedData.b2b_discount,
+            b2c_price: processedData.b2c_price,
+            b2c_processing_time: processedData.b2c_processing_time,
+            b2c_processing_type: processedData.b2c_processing_type,
+            b2c_discount: processedData.b2c_discount,
+            is_featured, is_active, display_order,
+            created_by: createdBy,
+        }, { transaction: t });
 
         if (visaImages.length > 0) {
             await db.VisaUploads.bulkCreate(
@@ -117,21 +106,12 @@ exports.createVisa = async (req, res) => {
         }
 
         await t.commit();
-
-        return res.status(201).json({
-            success: true,
-            message: 'Visa added successfully',
-            data: {}
-        });
+        return res.status(201).json({ success: true, message: 'Visa added successfully', data: {} });
 
     } catch (error) {
         await t.rollback();
         console.error('createVisa error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Server Error',
-            error: error.message
-        });
+        return res.status(500).json({ success: false, message: 'Server Error', error: error.message });
     }
 };
 
@@ -142,9 +122,6 @@ exports.updateVisa = async (req, res) => {
         const {
             name, country_id, short_description, detailed_description,
             visa_type, entry_type, validity_days, stay_duration_details,
-            base_price, processing_time_standard, processing_price_standard,
-            processing_time_express, processing_price_express,
-            processing_time_urgent, processing_price_urgent,
             discount_percent, is_featured, is_active, display_order,
             b2b_price, b2b_processing_time, b2b_processing_type, b2b_discount,
             b2c_price, b2c_processing_time, b2c_processing_type, b2c_discount,
@@ -154,12 +131,7 @@ exports.updateVisa = async (req, res) => {
             existingImages = [],
         } = req.body;
 
-        const visa = await db.Visa.findOne({
-            where: {
-                id: visaId,
-                is_deleted: 0
-            }
-        }, { transaction: t });
+        const visa = await db.Visa.findOne({ where: { id: visaId, is_deleted: 0 } }, { transaction: t });
 
         if (!visa) {
             await t.rollback();
@@ -207,23 +179,16 @@ exports.updateVisa = async (req, res) => {
 
         if (existingImages.length > 0) {
             await db.VisaUploads.destroy({
-                where: {
-                    visa_id: visaId,
-                    id: { [Op.notIn]: existingImages }
-                },
+                where: { visa_id: visaId, id: { [Op.notIn]: existingImages } },
                 transaction: t
             });
         }
 
         if (visaImages.length > 0) {
             await db.VisaUploads.destroy({
-                where: {
-                    visa_id: visaId,
-                    id: { [Op.notIn]: existingImages }
-                },
+                where: { visa_id: visaId, id: { [Op.notIn]: existingImages } },
                 transaction: t
             });
-
             await db.VisaUploads.bulkCreate(
                 visaImages.map(image => ({ visa_id: visaId, image_path: image })),
                 { transaction: t }
@@ -255,8 +220,8 @@ exports.updateVisa = async (req, res) => {
         }
 
         await t.commit();
-
         return res.status(200).json({ success: true, message: 'Visa updated successfully', data: {} });
+
     } catch (error) {
         await t.rollback();
         console.error('updateVisa error:', error);
@@ -278,10 +243,7 @@ exports.getVisaById = async (req, res) => {
             ]
         });
 
-        if (!visa) {
-            return res.status(404).json({ success: false, message: "Visa not found" });
-        }
-
+        if (!visa) return res.status(404).json({ success: false, message: "Visa not found" });
         res.status(200).json({ success: true, data: visa });
     } catch (error) {
         console.error(error);
@@ -312,7 +274,6 @@ exports.getVisas = async (req, res) => {
 
         if (countryId) where.country_id = countryId;
         if (visaType) where.visa_type = visaType;
-
         if (fromDate && toDate) {
             where.created_at = { [Op.gte]: fromDate, [Op.lte]: toDate };
         }
@@ -321,11 +282,8 @@ exports.getVisas = async (req, res) => {
 
         const rows = await db.Visa.findAll({
             where,
-            include: [
-                { model: db.Country, as: 'country', required: false, attributes: ['name'] }
-            ],
-            limit,
-            offset,
+            include: [{ model: db.Country, as: 'country', required: false, attributes: ['name'] }],
+            limit, offset,
             order: [
                 [literal('`Visa`.`display_order` IS NULL, `Visa`.`display_order` ASC')],
                 [col('Visa.created_at'), 'DESC']
@@ -350,11 +308,7 @@ exports.deleteVisa = async (req, res) => {
     try {
         const { id } = req.params;
         const visa = await db.Visa.findByPk(id);
-
-        if (!visa) {
-            return res.status(404).json({ success: false, message: "Visa not found" });
-        }
-
+        if (!visa) return res.status(404).json({ success: false, message: "Visa not found" });
         await db.Visa.update({ is_deleted: 1 }, { where: { id } });
         res.status(200).json({ success: true, message: "Visa deleted successfully" });
     } catch (error) {
@@ -370,7 +324,36 @@ exports.getVisaCriterias = async (req, res) => {
             attributes: ['id', 'name'],
             order: [['created_at', 'DESC']]
         });
-
         res.status(200).json({ success: true, data: data });
     } catch (error) {
-        console.error(error)
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+    }
+};
+
+exports.getVisaDocuments = async (req, res) => {
+    try {
+        const data = await db.VisaDocuments.findAll({
+            where: { is_active: 1, is_deleted: 0 },
+            attributes: ['id', 'name'],
+            order: [['created_at', 'DESC']]
+        });
+        res.status(200).json({ success: true, data: data });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+    }
+};
+
+exports.toggleVisaStatus = async (req, res) => {
+    try {
+        const { id } = req.body;
+        const visa = await db.Visa.findByPk(id);
+        if (!visa) return res.status(404).json({ success: false, message: "Visa not found" });
+        await visa.update({ is_active: visa.is_active ? 0 : 1 });
+        return res.status(200).json({ success: true, message: "Visa status updated successfully" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+    }
+};
