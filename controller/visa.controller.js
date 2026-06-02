@@ -51,22 +51,28 @@ exports.createVisa = async (req, res) => {
         };
 
         // Handle multiple images from the form data (images[0], images[1], etc.)
-        const visaImages = [];
+       const visaImages = [];
 
-        // Check if req.files exists and process all images
-        if (req.files) {
-            // Look for keys that match 'images[x]' pattern
-            Object.keys(req.files).forEach(key => {
-                if (key.startsWith('images[') && key.endsWith(']')) {
-                    // Get the file path from each images[x] entry
-                    const file = req.files[key][0];
-                    if (file && file.path) {
-                        visaImages.push(file.path);
-                    }
-                }
-            });
+console.log("req.files =>", req.files);
+
+if (req.files) {
+    for (const key of Object.keys(req.files)) {
+        if (key.startsWith('images[') && key.endsWith(']')) {
+            const file = req.files[key][0];
+
+            console.log("KEY =>", key);
+            console.log("FILE =>", file);
+            console.log("PATH =>", file?.path);
+
+            if (file && file.path) {
+                const url = await uploadToCloudinary(file.path);
+                console.log("CLOUDINARY URL =>", url);
+
+                visaImages.push(url);
+            }
         }
-
+    }
+}
         // 1) Create main Visa row
         const visa = await db.Visa.create(
             {
