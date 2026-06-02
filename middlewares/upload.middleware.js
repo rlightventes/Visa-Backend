@@ -1,33 +1,59 @@
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
+// Create uploads folder if not exists
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log(`✅ Uploads folder created at: ${uploadsDir}`);
+}
+
+// Configure multer storage
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/');
+        // Use absolute path
+        cb(null, uploadsDir);
     },
     filename: (req, file, cb) => {
+        // Generate unique filename
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+        const filename = file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname);
+        cb(null, filename);
     }
 });
 
+// File filter - only images and PDFs allowed
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('application/pdf')) {
+    const allowedMimes = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'application/pdf'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
         cb(null, true);
     } else {
-        cb(new Error('Only image files are allowed!'), false);
+        cb(new Error(`❌ Invalid file type: ${file.mimetype}. Only images and PDFs are allowed!`), false);
     }
 };
 
-// Create a standard multer instance
+// Create multer instance
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 100 * 1024 * 1024, // 100MB
+        fileSize: 100 * 1024 * 1024, // 100MB per file
         files: 130, // total file count
         fields: 150, // total fields including non-files
     },
-    fileFilter: fileFilter
+    fileFilter: fileFilter,
+    // Error handling
+    onError: (err, next) => {
+        console.error('Multer Error:', err.message);
+        next(err);
+    }
 });
 
 module.exports = upload;
