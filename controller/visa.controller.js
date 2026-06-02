@@ -1,3 +1,18 @@
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const uploadToCloudinary = async (filePath) => {
+    const result = await cloudinary.uploader.upload(filePath, {
+        folder: 'visa-images'
+    });
+    return result.secure_url;
+};
+
 const { getVisaApplicationCode } = require("../commonFunctions/commonFunction");
 const db = require("../models");
 const { Op, fn, col, literal } = require('sequelize');
