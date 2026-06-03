@@ -1,3 +1,12 @@
+const resolveImageUrl = (imagePath) => {
+    if (!imagePath) return '';
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+        return imagePath;
+    }
+    return `${process.env.BASE_URL}${imagePath}`;
+};
+
+//maine add kiya//
 const db = require("../models");
 const bcrypt = require("bcrypt");
 const path = require('path');
@@ -1528,8 +1537,8 @@ exports.getVisas = async (req, res) => {
                 b2c_discount: row.b2c_discount || 0,
                 b2c_discounted_price: b2cDiscountedPrice,
                 isFeatured: row.is_featured,
-                imageUrl: row.uploads?.[0]?.image_path ? `${process.env.BASE_URL}${row.uploads[0].image_path}` : '',
-                searchThumbUrl: row.uploads?.[0]?.image_path ? `${process.env.BASE_URL}${row.uploads[0].image_path}` : '',
+                imageUrl: row.uploads?.[0]?.image_path ? resolveImageUrl(row.uploads?.[0]?.image_path) : '',
+                searchThumbUrl: row.uploads?.[0]?.image_path ? resolveImageUrl(row.uploads?.[0]?.image_path) : '',
                 createdAt: row.created_at,
                 deliveryBy: deliveryBy,
                 visaTimeShort: getProcessingTimeText(row.processing_time_standard),
@@ -2011,7 +2020,7 @@ exports.getVisaDetails = async (req, res) => {
             b2cDiscount: visaDetails.b2c_discount,
             // Images
             images: {
-                main: visaDetails.uploads?.[0]?.image_path ? `${process.env.BASE_URL}${visaDetails.uploads[0].image_path}` : '',
+                main: visaDetails.uploads?.[0]?.image_path ? resolveImageUrl(visaDetails.uploads?.[0]?.image_path) : '',
                 secondary: [
                     visaDetails.uploads?.[1]?.image_path ? `${process.env.BASE_URL}${visaDetails.uploads[1].image_path}` : `${process.env.BASE_URL}defaults/country-1.jpg`,
                     visaDetails.uploads?.[2]?.image_path ? `${process.env.BASE_URL}${visaDetails.uploads[2].image_path}` : `${process.env.BASE_URL}defaults/country-2.jpg`
@@ -2831,8 +2840,8 @@ exports.getVisaSearchSuggestions = async (req, res) => {
                 price: finalPrice,
                 currency: visa.country?.currency || 'USD',
                 countryCode: visa.country?.iso2 || '',
-                imageUrl: visa.uploads?.[0]?.image_path ? `${process.env.BASE_URL}${visa.uploads[0].image_path}` : '',
-                searchThumbUrl: visa.uploads?.[0]?.image_path ? `${process.env.BASE_URL}${visa.uploads[0].image_path}` : '',
+                imageUrl: visa.uploads?.[0]?.image_path ? resolveImageUrl(visa.uploads?.[0]?.image_path) : '',
+                searchThumbUrl: visa.uploads?.[0]?.image_path ? resolveImageUrl(visa.uploads?.[0]?.image_path) : '',
                 visaTimeShort: getProcessingTimeText(visa.processing_time_standard)
             };
         });
@@ -6486,7 +6495,7 @@ exports.getFeaturedVisas = async (req, res) => {
                 b2c_processing_time: visa.b2c_processing_time,
                 b2c_processing_type: visa.b2c_processing_type,
                 imageUrl: visa.uploads?.[0]?.image_path 
-                    ? `${process.env.BASE_URL}${visa.uploads[0].image_path}` 
+                    ? resolveImageUrl(visa.uploads?.[0]?.image_path) 
                     : null
             };
         });
