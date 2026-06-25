@@ -17,28 +17,64 @@ class PassportService {
     }
 
     /**
-     * Convert image file to base64
+     * Convert image file to base64 - supports both local paths and remote URLs (Cloudinary)
      */
-    imageToBase64(filePath) {
+    async imageToBase64(filePath) {
         try {
-            const imageBuffer = fs.readFileSync(filePath);
-            return imageBuffer.toString('base64');
+            if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+                // Remote URL (e.g. Cloudinary) - download and convert
+                const response = await axios.get(filePath, { responseType: 'arraybuffer' });
+                return Buffer.from(response.data).toString('base64');
+            } else {
+                // Local file path
+                const imageBuffer = fs.readFileSync(filePath);
+                return imageBuffer.toString('base64');
+            }
         } catch (error) {
             throw new Error(`Error reading image file: ${error.message}`);
         }
     }
 
     /**
+     * Check if a file path is a remote URL
+     */
+    isRemoteUrl(filePath) {
+        return filePath.startsWith('http://') || filePath.startsWith('https://');
+    }
+
+    /**
+     * Download remote file to a temp local path (needed for Mindee which uses fs.createReadStream)
+     */
+    async downloadToTemp(fileUrl) {
+        const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+        const tempDir = '/tmp';
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+        const fileName = path.basename(fileUrl).split('?')[0] || `temp-${Date.now()}.jpg`;
+        const tempPath = path.join(tempDir, fileName);
+        fs.writeFileSync(tempPath, Buffer.from(response.data));
+        return tempPath;
+    }
+
+    /**
      * Extract passport data using only Mindee API
      */
     async extractPassportWithMindee(imagePath) {
+        let tempFilePath = null;
         try {
             if (!this.mindeeApiKey) {
                 throw new Error('MINDEE_API_KEY is not configured');
             }
 
+            let pathToUse = imagePath;
+            if (this.isRemoteUrl(imagePath)) {
+                tempFilePath = await this.downloadToTemp(imagePath);
+                pathToUse = tempFilePath;
+            }
+
             const result = await this.sendFileWithPolling(
-                imagePath,
+                pathToUse,
                 this.mindeeModelId,
                 this.mindeeApiKey
             );
@@ -47,6 +83,10 @@ class PassportService {
         } catch (error) {
             console.error('Error extracting passport data with Mindee:', error);
             throw new Error(`Mindee API error: ${error.message}`);
+        } finally {
+            if (tempFilePath && fs.existsSync(tempFilePath)) {
+                try { fs.unlinkSync(tempFilePath); } catch (e) { /* ignore */ }
+            }
         }
     }
 
@@ -175,7 +215,7 @@ class PassportService {
      */
     async extractTextFromImage(imagePath) {
         try {
-            const base64Image = this.imageToBase64(imagePath);
+            const base64Image = await this.imageToBase64(imagePath);
 
             const requestBody = {
                 requests: [
@@ -531,7 +571,7 @@ class PassportService {
 
     /**
      * Extract passport data using Gemini AI
-     * @param {string} imagePath - Path to the passport image file
+     * @param {string} imagePath - Path to the passport image file (local path or remote URL)
      * @returns {Object} Structured passport data
      */
     async extractPassportWithGemini(imagePath) {
@@ -540,16 +580,16 @@ class PassportService {
                 throw new Error('GEMINI_API_KEY is not configured');
             }
 
-            // Check if image file exists
-            if (!fs.existsSync(imagePath)) {
+            // Check if local file exists (skip check for remote URLs)
+            if (!this.isRemoteUrl(imagePath) && !fs.existsSync(imagePath)) {
                 throw new Error('Image file not found');
             }
 
-            // Convert image to base64
-            const imageBase64 = this.imageToBase64(imagePath);
+            // Convert image to base64 (handles both local paths and remote URLs)
+            const imageBase64 = await this.imageToBase64(imagePath);
 
             // Determine MIME type based on file extension
-            const fileExtension = path.extname(imagePath).toLowerCase();
+            const fileExtension = path.extname(imagePath.split('?')[0]).toLowerCase();
             let mimeType = 'image/jpeg'; // default
             if (fileExtension === '.png') {
                 mimeType = 'image/png';
@@ -635,4 +675,4 @@ class PassportService {
     }
 }
 
-module.exports = new PassportService(); 
+module.exports = new PassportService();
