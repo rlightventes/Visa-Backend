@@ -1,25 +1,23 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
 
-// Create uploads folder if not exists
-const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-    console.log(`✅ Uploads folder created at: ${uploadsDir}`);
-}
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-// Configure multer storage
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        // Use absolute path
-        cb(null, uploadsDir);
-    },
-    filename: (req, file, cb) => {
-        // Generate unique filename
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const filename = file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname);
-        cb(null, filename);
+// Configure Cloudinary storage for multer
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: (req, file) => {
+        return {
+            folder: 'documents',
+            resource_type: 'auto',
+            public_id: file.fieldname + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9)
+        };
     }
 });
 
@@ -32,7 +30,7 @@ const fileFilter = (req, file, cb) => {
         'image/webp',
         'application/pdf'
     ];
-    
+
     if (allowedMimes.includes(file.mimetype)) {
         cb(null, true);
     } else {
@@ -44,12 +42,11 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 100 * 1024 * 1024, // 100MB per file
-        files: 130, // total file count
-        fields: 150, // total fields including non-files
+        fileSize: 100 * 1024 * 1024,
+        files: 130,
+        fields: 150,
     },
     fileFilter: fileFilter,
-    // Error handling
     onError: (err, next) => {
         console.error('Multer Error:', err.message);
         next(err);
