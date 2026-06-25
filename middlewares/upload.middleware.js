@@ -9,6 +9,12 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+console.log('CLOUDINARY CONFIG CHECK:', {
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key_exists: !!process.env.CLOUDINARY_API_KEY,
+    api_secret_exists: !!process.env.CLOUDINARY_API_SECRET
+});
+
 // Configure Cloudinary storage for multer
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
@@ -30,7 +36,6 @@ const fileFilter = (req, file, cb) => {
         'image/webp',
         'application/pdf'
     ];
-
     if (allowedMimes.includes(file.mimetype)) {
         cb(null, true);
     } else {
