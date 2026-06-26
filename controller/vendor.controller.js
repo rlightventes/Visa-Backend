@@ -4371,23 +4371,19 @@ exports.getVendorVisaApplication = async (req, res) => {
 
             let documentToDownload = [];
 
-            if (app.uploaded_document?.trim()) {
-                const baseUrl = process.env.BASE_URL;
-                const documentPath = app.uploaded_document;
-                documentToDownload.push(`${baseUrl}${documentPath}`);
-            }
+if (app.uploaded_document?.trim()) {
+    documentToDownload.push(resolveImageUrl(app.uploaded_document));
+}
 
-            app.visa_application_fields?.forEach(doc => {
-                if (doc.uploaded_document?.trim()) {
-                    const baseUrl = process.env.BASE_URL;
-                    const documentPath = doc.uploaded_document;
-                    const fullUrl = `${baseUrl}${documentPath}`;
+app.visa_application_fields?.forEach(doc => {
+    if (doc.uploaded_document?.trim()) {
+        const fullUrl = resolveImageUrl(doc.uploaded_document);
 
-                    if (!documentToDownload.includes(fullUrl)) {
-                        documentToDownload.push(fullUrl);
-                    }
-                }
-            });
+        if (!documentToDownload.includes(fullUrl)) {
+            documentToDownload.push(fullUrl);
+        }
+    }
+});
 
             // Calculate proper B2B/B2C pricing with discounts
             let calculatedAmount = app.amount; // Default fallback
