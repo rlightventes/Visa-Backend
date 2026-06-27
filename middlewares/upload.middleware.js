@@ -22,7 +22,7 @@ const storage = new CloudinaryStorage({
         return {
             folder: 'documents',
             resource_type: 'auto',
-            public_id: file.fieldname + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9)
+            public_id: file.fieldname.replace(/\[(\d+)\]/g, '_$1').replace(/\[([^\]]+)\]/g, '_$2').replace(/[^a-zA-Z0-9_\-]/g, '_') + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9)
         };
     }
 });
