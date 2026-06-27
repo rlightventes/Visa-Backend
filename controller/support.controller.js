@@ -668,13 +668,19 @@ exports.downloadAttachment = async (req, res) => {
       });
     }
 
+  // Check if it's a Cloudinary URL (new uploads) or local path (old uploads)
+if (attachment.file_path.startsWith('http://') || attachment.file_path.startsWith('https://')) {
+    // Redirect to Cloudinary URL directly
+    return res.redirect(attachment.file_path);
+} else {
+    // Legacy local file handling
     const filePath = path.resolve(attachment.file_path);
 
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: "File not found on server"
-      });
+        return res.status(404).json({
+            success: false,
+            message: "File not found on server"
+        });
     }
 
     res.setHeader('Content-Disposition', `attachment; filename="${attachment.original_filename}"`);
@@ -682,6 +688,7 @@ exports.downloadAttachment = async (req, res) => {
 
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
+}
 
   } catch (error) {
     console.error('Download attachment error:', error);
