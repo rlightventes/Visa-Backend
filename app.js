@@ -60,7 +60,16 @@ const { verifyAdminToken, verifyToken, verifyVendorToken } = require('./middlewa
 // sequelize.sync()
 //     .then(() => console.log('Database connected'))
 //     .catch(err => console.error('Database connection error:', err));
+// Proxy fix for frontend double-URL issue
+app.get(/^\/https?:\/\/(.*)$/, (req, res) => {
+    const fullUrl = req.url.slice(1);
+    res.redirect(301, fullUrl);
+});
 
+// Test endpoint to check if API is working
+app.get('/', (req, res) => {
+    res.status(200).json({ message: 'API is working fine!' });
+});
 // Routes
 // Test endpoint to check if API is working
 app.get('/', (req, res) => {
