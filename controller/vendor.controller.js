@@ -1,17 +1,20 @@
 const resolveImageUrl = (imagePath) => {
     if (!imagePath) return '';
-    // Trim whitespace
     const cleanPath = imagePath.trim();
-    // Already full URL (Cloudinary ya koi bhi)
+    if (!cleanPath) return '';
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+        // Cloudinary PDF fix: /image/upload/ → /raw/upload/
+        if (cleanPath.includes('res.cloudinary.com') && cleanPath.endsWith('.pdf')) {
+            return cleanPath.replace('/image/upload/', '/raw/upload/');
+        }
         return cleanPath;
     }
-    // Empty string check
-    if (!cleanPath) return '';
-    // Local path — BASE_URL add karo
+    if (cleanPath.startsWith('/opt/') || cleanPath.startsWith('/var/') || cleanPath.startsWith('/home/') || cleanPath.startsWith('/root/')) {
+        return '';
+    }
     const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
-    const path = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-    return `${baseUrl}${path}`;
+    const filePath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    return `${baseUrl}${filePath}`;
 };
 
 //maine add kiya//
