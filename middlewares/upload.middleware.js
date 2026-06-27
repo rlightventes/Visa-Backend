@@ -2,7 +2,6 @@ const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('cloudinary').v2;
 
-// Configure Cloudinary
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -15,23 +14,22 @@ console.log('CLOUDINARY CONFIG CHECK:', {
     api_secret_exists: !!process.env.CLOUDINARY_API_SECRET
 });
 
-// Configure Cloudinary storage for multer
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-params: (req, file) => {
-    const isPDF = file.mimetype === 'application/pdf';
-    return {
-        folder: 'documents',
-        resource_type: isPDF ? 'raw' : 'image',
-        public_id: file.fieldname
-            .replace(/\[(\d+)\]/g, '_$1')
-            .replace(/\[([^\]]+)\]/g, '_$1')
-            .replace(/[^a-zA-Z0-9_\-]/g, '_')
-            + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9)
-    };
-}
+    params: (req, file) => {
+        const isPDF = file.mimetype === 'application/pdf';
+        return {
+            folder: 'documents',
+            resource_type: isPDF ? 'raw' : 'image',
+            public_id: file.fieldname
+                .replace(/\[(\d+)\]/g, '_$1')
+                .replace(/\[([^\]]+)\]/g, '_$1')
+                .replace(/[^a-zA-Z0-9_\-]/g, '_')
+                + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9)
+        };
+    }
+});
 
-// File filter - only images and PDFs allowed
 const fileFilter = (req, file, cb) => {
     const allowedMimes = [
         'image/jpeg',
@@ -47,7 +45,6 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-// Create multer instance
 const upload = multer({
     storage: storage,
     limits: {
