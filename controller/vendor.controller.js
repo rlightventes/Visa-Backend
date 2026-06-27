@@ -1,9 +1,17 @@
 const resolveImageUrl = (imagePath) => {
     if (!imagePath) return '';
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-        return imagePath;
+    // Trim whitespace
+    const cleanPath = imagePath.trim();
+    // Already full URL (Cloudinary ya koi bhi)
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+        return cleanPath;
     }
-    return `${process.env.BASE_URL}${imagePath}`;
+    // Empty string check
+    if (!cleanPath) return '';
+    // Local path — BASE_URL add karo
+    const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
+    const path = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    return `${baseUrl}${path}`;
 };
 
 //maine add kiya//
