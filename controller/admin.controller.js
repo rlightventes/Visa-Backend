@@ -1,3 +1,22 @@
+const resolveImageUrl = (imagePath) => {
+    if (!imagePath) return '';
+    const cleanPath = imagePath.trim();
+    if (!cleanPath) return '';
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+        if (cleanPath.includes('res.cloudinary.com') && cleanPath.endsWith('.pdf')) {
+            return cleanPath.replace('/image/upload/', '/raw/upload/');
+        }
+        return cleanPath;
+    }
+    if (cleanPath.startsWith('/opt/') || cleanPath.startsWith('/var/') || cleanPath.startsWith('/home/') || cleanPath.startsWith('/root/')) {
+        return '';
+    }
+    const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
+    const filePath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    return `${baseUrl}${filePath}`;
+};
+
+
 const db = require("../models");
 const { Op, fn, col, literal, where } = require('sequelize');
 const bcrypt = require("bcrypt");
