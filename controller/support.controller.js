@@ -644,6 +644,7 @@ exports.updateTicketStatus = async (req, res) => {
 };
 
 // Download attachment
+// Download attachment
 exports.downloadAttachment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -668,16 +669,14 @@ exports.downloadAttachment = async (req, res) => {
       });
     }
 
-  // Check if it's a Cloudinary URL (new uploads) or local path (old uploads)
-if (attachment.file_path.startsWith('http://') || attachment.file_path.startsWith('https://')) {
-    // Stream the file through our server instead of redirecting
-    const axios = require('axios'); // top of file mein import kar lena agar pehle se nahi hai
-
-    try {
+    // Check if it's a Cloudinary URL (new uploads) or local path (old uploads)
+    if (attachment.file_path.startsWith('http://') || attachment.file_path.startsWith('https://')) {
+      // Stream the file through our server instead of redirecting
+      try {
         const response = await axios({
-            method: 'get',
-            url: attachment.file_path,
-            responseType: 'stream'
+          method: 'get',
+          url: attachment.file_path,
+          responseType: 'stream'
         });
 
         res.setHeader('Content-Disposition', `attachment; filename="${attachment.original_filename}"`);
@@ -685,15 +684,40 @@ if (attachment.file_path.startsWith('http://') || attachment.file_path.startsWit
         res.setHeader('Access-Control-Allow-Origin', '*');
 
         response.data.pipe(res);
-    } catch (err) {
+      } catch (err) {
         console.error('Cloudinary fetch error:', err.message);
         return res.status(502).json({
-            success: false,
-            message: "Failed to fetch file from storage"
+          success: false,
+          message: "Failed to fetch file from storage"
         });
+      }
+    } else {
+      // Legacy local file handling
+      const filePath = path.resolve(attachment.file_path);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({
+          success: false,
+          message: "File not found on server"
+        });
+      }
+
+      res.setHeader('Content-Disposition', `attachment; filename="${attachment.original_filename}"`);
+      res.setHeader('Content-Type', attachment.mime_type);
+
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
     }
-}
-// Get support statistics (Admin only)
+
+  } catch (error) {
+    console.error('Download attachment error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message
+    });
+  }
+};// Get support statistics (Admin only)
 exports.getSupportStats = async (req, res) => {
   try {
     const user_id = req.user.id;
