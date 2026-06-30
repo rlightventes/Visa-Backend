@@ -670,36 +670,29 @@ exports.downloadAttachment = async (req, res) => {
 
   // Check if it's a Cloudinary URL (new uploads) or local path (old uploads)
 if (attachment.file_path.startsWith('http://') || attachment.file_path.startsWith('https://')) {
-    // Redirect to Cloudinary URL directly
-    return res.redirect(attachment.file_path);
-} else {
-    // Legacy local file handling
-    const filePath = path.resolve(attachment.file_path);
+    // Stream the file through our server instead of redirecting
+    const axios = require('axios'); // top of file mein import kar lena agar pehle se nahi hai
 
-    if (!fs.existsSync(filePath)) {
-        return res.status(404).json({
+    try {
+        const response = await axios({
+            method: 'get',
+            url: attachment.file_path,
+            responseType: 'stream'
+        });
+
+        res.setHeader('Content-Disposition', `attachment; filename="${attachment.original_filename}"`);
+        res.setHeader('Content-Type', attachment.mime_type || response.headers['content-type']);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        response.data.pipe(res);
+    } catch (err) {
+        console.error('Cloudinary fetch error:', err.message);
+        return res.status(502).json({
             success: false,
-            message: "File not found on server"
+            message: "Failed to fetch file from storage"
         });
     }
-
-    res.setHeader('Content-Disposition', `attachment; filename="${attachment.original_filename}"`);
-    res.setHeader('Content-Type', attachment.mime_type);
-
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
 }
-
-  } catch (error) {
-    console.error('Download attachment error:', error);
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-      error: error.message
-    });
-  }
-};
-
 // Get support statistics (Admin only)
 exports.getSupportStats = async (req, res) => {
   try {
