@@ -83,10 +83,6 @@ app.get('/', (req, res) => {
     res.status(200).json({ message: 'API is working fine!' });
 });
 // Routes
-// Test endpoint to check if API is working
-app.get('/', (req, res) => {
-    res.status(200).json({ message: 'API is working fine!' });
-});
 
 // Define your API endpoints
 app.use('/auth', require('./routes/auth.routes'));
