@@ -1,3 +1,4 @@
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 // Create uploads folder if not exists
@@ -61,9 +62,20 @@ const { verifyAdminToken, verifyToken, verifyVendorToken } = require('./middlewa
 //     .then(() => console.log('Database connected'))
 //     .catch(err => console.error('Database connection error:', err));
 // Proxy fix for frontend double-URL issue
-app.get(/^\/https?:\/\/(.*)$/, (req, res) => {
+app.get(/^\/https?:\/\/(.*)$/, async (req, res) => {
     const fullUrl = req.url.slice(1);
-    res.redirect(301, fullUrl);
+    try {
+        const response = await axios({
+            method: 'get',
+            url: fullUrl,
+            responseType: 'stream'
+        });
+        res.setHeader('Content-Type', response.headers['content-type']);
+        response.data.pipe(res);
+    } catch (err) {
+        console.error('Proxy fetch error:', err.message);
+        res.status(502).json({ success: false, message: 'Failed to fetch resource' });
+    }
 });
 
 // Test endpoint to check if API is working
