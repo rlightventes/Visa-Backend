@@ -22,16 +22,18 @@ const resolveImageUrl = (imagePath) => {
     return `${baseUrl}${filePath}`;
 };
 
-// FIX: Downloaded documents (esp. PDFs) were arriving with no filename
-// extension at all, because the public_id stored on Cloudinary never
-// included one and the URL was served as-is. The file itself was always a
-// valid PDF — the OS/browser just didn't know what app to open it with.
-// Cloudinary's `fl_attachment:<filename>` transformation lets us force a
-// proper filename (with extension) at download time without needing to
-// re-upload anything or touch the frontend download button code.
+// FIX (v3): Cloudinary does NOT support URL-based transformations
+// (including delivery flags like fl_attachment) on resource_type: 'raw'
+// assets — only on 'image'/'video'. Applying fl_attachment to a
+// /raw/upload/ URL causes Cloudinary to reject the request, which makes
+// our /https://... proxy route in app.js throw and return a 502. Since
+// PDFs are always uploaded as resource_type 'raw' (see
+// upload.middleware.js), skip the transform for raw URLs — the proxy
+// route now sets Content-Disposition itself to force the filename.
 const withDownloadFilename = (url) => {
     if (!url || typeof url !== 'string') return url;
     if (!url.includes('res.cloudinary.com')) return url;
+    if (url.includes('/raw/upload/')) return url;
 
     const uploadMarker = '/upload/';
     const idx = url.indexOf(uploadMarker);
