@@ -3,15 +3,9 @@ const resolveImageUrl = (imagePath) => {
     const cleanPath = imagePath.trim();
     if (!cleanPath) return '';
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-        // FIX: Removed the blind '/image/upload/' -> '/raw/upload/' replace for
-        // PDFs. That replace assumed every PDF was stored on Cloudinary as
-        // resource_type 'raw', but PDFs uploaded before the upload.middleware.js
-        // fix (or with a misreported mimetype) are actually stored as 'image'.
-        // Rewriting their URL to /raw/upload/ pointed at a resource that
-        // doesn't exist there, causing "Failed to fetch resource" errors.
-        // Now that upload.middleware.js reliably tags PDFs with resource_type
-        // 'raw' at upload time, the stored URL is already correct — just
-        // return it as-is.
+        if (cleanPath.includes('res.cloudinary.com') && cleanPath.endsWith('.pdf')) {
+            return cleanPath.replace('/image/upload/', '/raw/upload/');
+        }
         return cleanPath;
     }
     if (cleanPath.startsWith('/opt/') || cleanPath.startsWith('/var/') || cleanPath.startsWith('/home/') || cleanPath.startsWith('/root/')) {
@@ -21,6 +15,33 @@ const resolveImageUrl = (imagePath) => {
     const filePath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `${baseUrl}${filePath}`;
 };
+
+// FIX: Downloaded documents (esp. PDFs) were arriving with no filename
+// extension at all (e.g. "travellers_0_flight_booking-...551228182"
+// instead of "....pdf"), because the public_id stored on Cloudinary never
+// included one and the URL was served as-is. The file itself was always a
+// valid PDF — the OS/browser just didn't know what app to open it with.
+// Cloudinary's `fl_attachment:<filename>` transformation lets us force a
+// proper filename (with extension) at download time without needing to
+// re-upload anything or touch the frontend download button code.
+const withDownloadFilename = (url) => {
+    if (!url || typeof url !== 'string') return url;
+    if (!url.includes('res.cloudinary.com')) return url;
+
+    const uploadMarker = '/upload/';
+    const idx = url.indexOf(uploadMarker);
+    if (idx === -1) return url;
+
+    const afterUpload = url.substring(idx + uploadMarker.length);
+    // Skip past any existing transformation/attachment segment already present
+    const segments = afterUpload.split('/');
+    let lastSegment = segments[segments.length - 1] || '';
+    const hasExtension = /\.[a-zA-Z0-9]{2,5}$/.test(lastSegment);
+    const filename = hasExtension ? lastSegment : `${lastSegment}.pdf`;
+
+    return `${url.substring(0, idx + uploadMarker.length)}fl_attachment:${encodeURIComponent(filename)}/${afterUpload}`;
+};
+
 
 const db = require("../models");
 const { Op, fn, col, literal, where } = require('sequelize');
@@ -1174,10 +1195,43 @@ exports.getVisaApplicationDetails = async (req, res) => {
             });
         }
 
+        // FIX: Fix up every document URL (flight booking, hotel booking,
+        // passport photos, bank statements, etc.) so downloads always carry
+        // a proper filename + extension, instead of returning raw DB paths
+        // untouched as this endpoint previously did.
+        const documentFieldNames = [
+            'passport_size_photo', 'passport_front_photo', 'passport_back_photo',
+            'pan_card_photo', 'itr_1st_year_photo', 'itr_2nd_year_photo', 'itr_3rd_year_photo',
+            'vaccination_certificate', 'medical_insurance_certificate', 'employment_letter',
+            'proof_of_funds', 'flight_booking', 'travel_insurance', 'travel_itinerary',
+            'hotel_booking', 'invitation_letter', 'three_months_bank_statement',
+            'six_months_bank_statement', 'three_months_bank_signed_and_stamped_statement',
+            'six_months_bank_signed_and_stamped_statement', 'aadhar_card',
+            'passport_external_cover', 'uploaded_document'
+        ];
+
+        const applicationData = application.toJSON();
+
+        if (applicationData.uploaded_document) {
+            applicationData.uploaded_document = withDownloadFilename(resolveImageUrl(applicationData.uploaded_document));
+        }
+
+        if (Array.isArray(applicationData.visa_application_fields)) {
+            applicationData.visa_application_fields = applicationData.visa_application_fields.map(field => {
+                const updatedField = { ...field };
+                documentFieldNames.forEach(fieldName => {
+                    if (updatedField[fieldName]) {
+                        updatedField[fieldName] = withDownloadFilename(resolveImageUrl(updatedField[fieldName]));
+                    }
+                });
+                return updatedField;
+            });
+        }
+
         return res.status(200).json({
             success: true,
             message: 'Visa application details retrieved successfully',
-            data: application
+            data: applicationData
         });
     } catch (error) {
         console.error('getVisaApplicationDetails error:', error);
