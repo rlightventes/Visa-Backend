@@ -133,17 +133,28 @@ class ZohoPaymentsService {
                         raw: response.data
                     };
                 }
-            } catch (apiError) {
-                // Log the detailed API error but continue with a fallback so that non-production environments keep working.
-                console.error('Error creating Zoho payment session via API:', apiError.response?.data || apiError.message);
-            }
 
-            // Fallback: generate a pseudo session id (useful for development/staging where Zoho credentials may be absent)
-            const fallbackId = `zoho_session_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
-            return { id: fallbackId, raw: { status: 'created', id: fallbackId } };
+                // Zoho responded but without the expected session id shape — treat as a real failure.
+                console.error('Zoho payment session response missing payments_session_id:', response.data);
+                throw new Error('Zoho did not return a valid payment session.');
+            } catch (apiError) {
+                // FIX: Previously this error was only logged, and a fake/pseudo
+                // session id was silently returned and handed to the frontend
+                // checkout widget. That fake id can never succeed at Zoho's
+                // end, so the customer would always see a generic "Payment
+                // Failed - temporary glitch" message with no indication that
+                // the real problem was on our side (e.g. invalid_account_id,
+                // expired credentials, etc). We now surface the real error
+                // instead of masking it with a fallback.
+                const zohoError = apiError.response?.data || { message: apiError.message };
+                console.error('Error creating Zoho payment session via API:', zohoError);
+                const err = new Error(zohoError.message || 'Failed to create payment session with Zoho.');
+                err.zohoError = zohoError;
+                throw err;
+            }
         } catch (error) {
             console.error('Error in createPaymentSession:', error.message);
-            throw new Error('Failed to create payment session');
+            throw error;
         }
     }
 
@@ -344,4 +355,4 @@ class ZohoPaymentsService {
     }
 }
 
-module.exports = new ZohoPaymentsService(); 
+module.exports = new ZohoPaymentsService();
