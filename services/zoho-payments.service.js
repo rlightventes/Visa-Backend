@@ -3,15 +3,33 @@ const crypto = require('crypto');
 
 class ZohoPaymentsService {
     constructor() {
-        this.baseUrl = process.env.ZOHO_API_BASE_URL || 'https://www.zohoapis.in';
-        this.clientId = process.env.ZOHO_CLIENT_ID;
-        this.clientSecret = process.env.ZOHO_CLIENT_SECRET;
-        this.refreshToken = process.env.ZOHO_REFRESH_TOKEN;
-        this.organizationId = process.env.ZOHO_ORGANIZATION_ID;
+        // FIX: .trim() guards against accidental leading/trailing whitespace
+        // or newlines that can get pasted into Render's environment variable
+        // fields. Such invisible characters make a client_id/secret/refresh
+        // token silently "different" from the real Zoho value, which Zoho
+        // reports back as generic errors like invalid_account_id — even
+        // though the value looks correct when displayed.
+        this.baseUrl = (process.env.ZOHO_API_BASE_URL || 'https://www.zohoapis.in').trim();
+        this.clientId = (process.env.ZOHO_CLIENT_ID || '').trim();
+        this.clientSecret = (process.env.ZOHO_CLIENT_SECRET || '').trim();
+        this.refreshToken = (process.env.ZOHO_REFRESH_TOKEN || '').trim();
+        this.organizationId = (process.env.ZOHO_ORGANIZATION_ID || '').trim();
         // Payments account (required for /paymentsessions endpoint)
-        this.paymentsAccountId = process.env.ZOHO_PAYMENTS_ACCOUNT_ID;
+        this.paymentsAccountId = (process.env.ZOHO_PAYMENTS_ACCOUNT_ID || '').trim();
         this.accessToken = null;
         this.tokenExpiry = null;
+
+        // Diagnostic log (safe: only lengths, never the actual secret values).
+        // Compare these lengths against what you see when you select-all and
+        // copy each value fresh from Zoho — a mismatch usually means Render
+        // has stored extra whitespace/newline characters around the value.
+        console.log('[ZohoPaymentsService] Credential lengths at startup:', {
+            clientId_length: this.clientId.length,
+            clientSecret_length: this.clientSecret.length,
+            refreshToken_length: this.refreshToken.length,
+            paymentsAccountId_length: this.paymentsAccountId.length,
+            paymentsAccountId_value: this.paymentsAccountId // account_id isn't secret, safe to log fully
+        });
     }
 
     /**
