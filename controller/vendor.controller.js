@@ -3,10 +3,15 @@ const resolveImageUrl = (imagePath) => {
     const cleanPath = imagePath.trim();
     if (!cleanPath) return '';
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-        // Cloudinary PDF fix: /image/upload/ → /raw/upload/
-        if (cleanPath.includes('res.cloudinary.com') && cleanPath.endsWith('.pdf')) {
-            return cleanPath.replace('/image/upload/', '/raw/upload/');
-        }
+        // FIX: Removed the blind '/image/upload/' -> '/raw/upload/' replace for
+        // PDFs. That replace assumed every PDF was stored on Cloudinary as
+        // resource_type 'raw', but PDFs uploaded before the upload.middleware.js
+        // fix (or with a misreported mimetype) are actually stored as 'image'.
+        // Rewriting their URL to /raw/upload/ pointed at a resource that
+        // doesn't exist there, causing "Failed to fetch resource" errors.
+        // Now that upload.middleware.js reliably tags PDFs with resource_type
+        // 'raw' at upload time, the stored URL is already correct — just
+        // return it as-is.
         return cleanPath;
     }
     if (cleanPath.startsWith('/opt/') || cleanPath.startsWith('/var/') || cleanPath.startsWith('/home/') || cleanPath.startsWith('/root/')) {
@@ -15,6 +20,30 @@ const resolveImageUrl = (imagePath) => {
     const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
     const filePath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `${baseUrl}${filePath}`;
+};
+
+// FIX: Downloaded documents (esp. PDFs) were arriving with no filename
+// extension at all, because the public_id stored on Cloudinary never
+// included one and the URL was served as-is. The file itself was always a
+// valid PDF — the OS/browser just didn't know what app to open it with.
+// Cloudinary's `fl_attachment:<filename>` transformation lets us force a
+// proper filename (with extension) at download time without needing to
+// re-upload anything or touch the frontend download button code.
+const withDownloadFilename = (url) => {
+    if (!url || typeof url !== 'string') return url;
+    if (!url.includes('res.cloudinary.com')) return url;
+
+    const uploadMarker = '/upload/';
+    const idx = url.indexOf(uploadMarker);
+    if (idx === -1) return url;
+
+    const afterUpload = url.substring(idx + uploadMarker.length);
+    const segments = afterUpload.split('/');
+    let lastSegment = segments[segments.length - 1] || '';
+    const hasExtension = /\.[a-zA-Z0-9]{2,5}$/.test(lastSegment);
+    const filename = hasExtension ? lastSegment : `${lastSegment}.pdf`;
+
+    return `${url.substring(0, idx + uploadMarker.length)}fl_attachment:${encodeURIComponent(filename)}/${afterUpload}`;
 };
 
 //maine add kiya//
@@ -2659,11 +2688,6 @@ exports.createVisaApplication = async (req, res) => {
             zohoSession = await zohoPaymentsService.createPaymentSession(zohoSessionOptions);
         } catch (sessionError) {
             await transaction.rollback();
-            // FIX: Surface a clearer, actionable message instead of a bare
-            // 500. The underlying Zoho error (e.g. invalid_account_id,
-            // auth failure) is still logged in full for debugging, but the
-            // vendor/user sees a message that makes clear this is a payment
-            // gateway issue on our side, not something they did wrong.
             console.error('Zoho payment session creation error:', sessionError.zohoError || sessionError.message);
             return res.status(503).json({
                 success: false,
@@ -3521,11 +3545,6 @@ exports.submitVendorVisaApplication = async (req, res) => {
             zohoSession = await zohoPaymentsService.createPaymentSession(zohoSessionOptions);
         } catch (sessionError) {
             await transaction.rollback();
-            // FIX: Surface a clearer, actionable message instead of a bare
-            // 500. The underlying Zoho error (e.g. invalid_account_id,
-            // auth failure) is still logged in full for debugging, but the
-            // vendor/user sees a message that makes clear this is a payment
-            // gateway issue on our side, not something they did wrong.
             console.error('Zoho payment session creation error:', sessionError.zohoError || sessionError.message);
             return res.status(503).json({
                 success: false,
@@ -5843,6 +5862,12 @@ exports.getVisaApplicationDraft = async (req, res) => {
             });
         }
 
+        // FIX: This endpoint was returning raw DB document paths untouched
+        // (no resolveImageUrl, no download-filename fix), so PDFs downloaded
+        // from a draft application had no extension and looked corrupt/binary
+        // when opened. docUrl() applies both fixes consistently here.
+        const docUrl = (v) => v ? withDownloadFilename(resolveImageUrl(v)) : v;
+
         const travelers = draftApplication.visa_application_fields.map(traveller => ({
             first_name: traveller.first_name,
             middle_name: traveller.middle_name,
@@ -5865,28 +5890,28 @@ exports.getVisaApplicationDraft = async (req, res) => {
             passport_issue_place: traveller.passport_issue_place,
 
             // File paths
-            passport_size_photo: traveller.passport_size_photo,
-            passport_front_photo: traveller.passport_front_photo,
-            passport_back_photo: traveller.passport_back_photo,
-            pan_card_photo: traveller.pan_card_photo,
-            itr_1st_year_photo: traveller.itr_1st_year_photo,
-            itr_2nd_year_photo: traveller.itr_2nd_year_photo,
-            itr_3rd_year_photo: traveller.itr_3rd_year_photo,
-            vaccination_certificate: traveller.vaccination_certificate,
-            medical_insurance_certificate: traveller.medical_insurance_certificate,
-            employment_letter: traveller.employment_letter,
-            proof_of_funds: traveller.proof_of_funds,
-            flight_booking: traveller.flight_booking,
-            travel_insurance: traveller.travel_insurance,
-            travel_itinerary: traveller.travel_itinerary,
-            hotel_booking: traveller.hotel_booking,
-            invitation_letter: traveller.invitation_letter,
-            three_months_bank_statement: traveller.three_months_bank_statement,
-            six_months_bank_statement: traveller.six_months_bank_statement,
-            three_months_bank_signed_and_stamped_statement: traveller.three_months_bank_signed_and_stamped_statement,
-            six_months_bank_signed_and_stamped_statement: traveller.six_months_bank_signed_and_stamped_statement,
-            aadhar_card: traveller.aadhar_card,
-            passport_external_cover: traveller.passport_external_cover,
+            passport_size_photo: docUrl(traveller.passport_size_photo),
+            passport_front_photo: docUrl(traveller.passport_front_photo),
+            passport_back_photo: docUrl(traveller.passport_back_photo),
+            pan_card_photo: docUrl(traveller.pan_card_photo),
+            itr_1st_year_photo: docUrl(traveller.itr_1st_year_photo),
+            itr_2nd_year_photo: docUrl(traveller.itr_2nd_year_photo),
+            itr_3rd_year_photo: docUrl(traveller.itr_3rd_year_photo),
+            vaccination_certificate: docUrl(traveller.vaccination_certificate),
+            medical_insurance_certificate: docUrl(traveller.medical_insurance_certificate),
+            employment_letter: docUrl(traveller.employment_letter),
+            proof_of_funds: docUrl(traveller.proof_of_funds),
+            flight_booking: docUrl(traveller.flight_booking),
+            travel_insurance: docUrl(traveller.travel_insurance),
+            travel_itinerary: docUrl(traveller.travel_itinerary),
+            hotel_booking: docUrl(traveller.hotel_booking),
+            invitation_letter: docUrl(traveller.invitation_letter),
+            three_months_bank_statement: docUrl(traveller.three_months_bank_statement),
+            six_months_bank_statement: docUrl(traveller.six_months_bank_statement),
+            three_months_bank_signed_and_stamped_statement: docUrl(traveller.three_months_bank_signed_and_stamped_statement),
+            six_months_bank_signed_and_stamped_statement: docUrl(traveller.six_months_bank_signed_and_stamped_statement),
+            aadhar_card: docUrl(traveller.aadhar_card),
+            passport_external_cover: docUrl(traveller.passport_external_cover),
 
             // Additional fields
             visa_type: traveller.visa_type,
@@ -6077,11 +6102,6 @@ exports.completeVisaApplicationPayment = async (req, res) => {
             zohoSession = await zohoPaymentsService.createPaymentSession(zohoSessionOptions);
         } catch (sessionError) {
             await transaction.rollback();
-            // FIX: Surface a clearer, actionable message instead of a bare
-            // 500. The underlying Zoho error (e.g. invalid_account_id,
-            // auth failure) is still logged in full for debugging, but the
-            // vendor/user sees a message that makes clear this is a payment
-            // gateway issue on our side, not something they did wrong.
             console.error('Zoho payment session creation error:', sessionError.zohoError || sessionError.message);
             return res.status(503).json({
                 success: false,
