@@ -1,3 +1,4 @@
+middleware me upload.middleware js 
 const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('cloudinary').v2;
@@ -23,22 +24,19 @@ const storage = new CloudinaryStorage({
         // with resource_type 'image' instead of 'raw', which later breaks
         // fetching them (Cloudinary has no 'raw' asset for that public_id).
         // Now we also fall back to checking the file extension.
-     const publicId =
-    file.fieldname
-        .replace(/\[(\d+)\]/g, '_$1')
-        .replace(/\[([^\]]+)\]/g, '_$1')
-        .replace(/[^a-zA-Z0-9_\-]/g, '_') +
-    '-' +
-    Date.now() +
-    '-' +
-    Math.round(Math.random() * 1e9) +
-    (isPDF ? '.pdf' : '');
+        const isPDF =
+            file.mimetype === 'application/pdf' ||
+            /\.pdf$/i.test(file.originalname || '');
 
-       return {
-    folder: 'documents',
-    resource_type: isPDF ? 'raw' : 'image',
-    public_id: publicId
-};
+        return {
+            folder: 'documents',
+            resource_type: isPDF ? 'raw' : 'image',
+            public_id: file.fieldname
+                .replace(/\[(\d+)\]/g, '_$1')
+                .replace(/\[([^\]]+)\]/g, '_$1')
+                .replace(/[^a-zA-Z0-9_\-]/g, '_')
+                + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9)
+        };
     }
 });
 
