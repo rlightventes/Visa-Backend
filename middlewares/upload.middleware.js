@@ -17,7 +17,16 @@ console.log('CLOUDINARY CONFIG CHECK:', {
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: (req, file) => {
-        const isPDF = file.mimetype === 'application/pdf';
+        // FIX: Some browsers/OS (mobile Safari, some Android upload flows) send
+        // 'application/octet-stream' or a blank mimetype for PDFs instead of
+        // 'application/pdf'. Relying only on mimetype caused PDFs to be stored
+        // with resource_type 'image' instead of 'raw', which later breaks
+        // fetching them (Cloudinary has no 'raw' asset for that public_id).
+        // Now we also fall back to checking the file extension.
+        const isPDF =
+            file.mimetype === 'application/pdf' ||
+            /\.pdf$/i.test(file.originalname || '');
+
         return {
             folder: 'documents',
             resource_type: isPDF ? 'raw' : 'image',
@@ -38,7 +47,14 @@ const fileFilter = (req, file, cb) => {
         'image/webp',
         'application/pdf'
     ];
-    if (allowedMimes.includes(file.mimetype)) {
+
+    // FIX: Also allow PDFs whose mimetype was reported incorrectly by the
+    // browser, as long as the filename extension is .pdf. Without this,
+    // such files could get rejected outright by the filter before even
+    // reaching the storage engine above.
+    const isPDFByExtension = /\.pdf$/i.test(file.originalname || '');
+
+    if (allowedMimes.includes(file.mimetype) || isPDFByExtension) {
         cb(null, true);
     } else {
         cb(new Error(`❌ Invalid file type: ${file.mimetype}. Only images and PDFs are allowed!`), false);
