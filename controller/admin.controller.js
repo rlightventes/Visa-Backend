@@ -16,17 +16,20 @@ const resolveImageUrl = (imagePath) => {
     return `${baseUrl}${filePath}`;
 };
 
-// FIX: Downloaded documents (esp. PDFs) were arriving with no filename
-// extension at all (e.g. "travellers_0_flight_booking-...551228182"
-// instead of "....pdf"), because the public_id stored on Cloudinary never
-// included one and the URL was served as-is. The file itself was always a
-// valid PDF — the OS/browser just didn't know what app to open it with.
-// Cloudinary's `fl_attachment:<filename>` transformation lets us force a
-// proper filename (with extension) at download time without needing to
-// re-upload anything or touch the frontend download button code.
+// FIX (v3): Cloudinary does NOT support URL-based transformations
+// (including delivery flags like fl_attachment) on resource_type: 'raw'
+// assets — only on 'image'/'video'. Inserting fl_attachment:<filename>
+// into a /raw/upload/ URL causes Cloudinary to reject the request, which
+// makes our own /https://... proxy route in app.js throw and return a
+// 502. Since our PDFs (flight bookings, bank statements, etc.) are always
+// uploaded as resource_type 'raw' (see upload.middleware.js), we must NOT
+// apply fl_attachment to raw URLs. The proxy route in app.js now sets
+// Content-Disposition itself, so we just return the resolved URL as-is
+// for raw assets.
 const withDownloadFilename = (url) => {
     if (!url || typeof url !== 'string') return url;
     if (!url.includes('res.cloudinary.com')) return url;
+    if (url.includes('/raw/upload/')) return url;
 
     const uploadMarker = '/upload/';
     const idx = url.indexOf(uploadMarker);
@@ -416,7 +419,7 @@ exports.deleteAdmin = async (req, res) => {
                 user_id: existingAdmin.id,
             }
         });
-        -await db.UserPermission.destroy({
+        await db.UserPermission.destroy({
             where: {
                 user_id: existingAdmin.id,
             }
