@@ -3,10 +3,15 @@ const resolveImageUrl = (imagePath) => {
     const cleanPath = imagePath.trim();
     if (!cleanPath) return '';
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-        // Cloudinary PDF fix: /image/upload/ → /raw/upload/
-        if (cleanPath.includes('res.cloudinary.com') && cleanPath.endsWith('.pdf')) {
-            return cleanPath.replace('/image/upload/', '/raw/upload/');
-        }
+        // FIX: Removed the blind '/image/upload/' -> '/raw/upload/' replace for
+        // PDFs. That replace assumed every PDF was stored on Cloudinary as
+        // resource_type 'raw', but PDFs uploaded before the upload.middleware.js
+        // fix (or with a misreported mimetype) are actually stored as 'image'.
+        // Rewriting their URL to /raw/upload/ pointed at a resource that
+        // doesn't exist there, causing "Failed to fetch resource" errors.
+        // Now that upload.middleware.js reliably tags PDFs with resource_type
+        // 'raw' at upload time, the stored URL is already correct — just
+        // return it as-is.
         return cleanPath;
     }
     if (cleanPath.startsWith('/opt/') || cleanPath.startsWith('/var/') || cleanPath.startsWith('/home/') || cleanPath.startsWith('/root/')) {
