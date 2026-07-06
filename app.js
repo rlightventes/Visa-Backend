@@ -61,7 +61,19 @@ const { verifyAdminToken, verifyToken, verifyVendorToken } = require('./middlewa
 // sequelize.sync()
 //     .then(() => console.log('Database connected'))
 //     .catch(err => console.error('Database connection error:', err));
+
 // Proxy fix for frontend double-URL issue
+//
+// FIX: Previously this proxy only forwarded Content-Type and streamed the
+// response body. For Cloudinary "raw" resources (e.g. PDFs), Cloudinary
+// does NOT support URL-based transformations/flags like fl_attachment on
+// raw/upload URLs — only on image/video. Any caller that had appended
+// fl_attachment:<filename> to a raw PDF URL would get a rejected request
+// from Cloudinary, which surfaced here as a 502 "Failed to fetch resource".
+//
+// Now this proxy is responsible for forcing a proper downloadable filename
+// itself via the Content-Disposition header, so callers no longer need to
+// (and must not) mutate raw Cloudinary URLs with fl_attachment.
 app.get(/^\/https?:\/\/(.*)$/, async (req, res) => {
     const fullUrl = req.url.slice(1);
     try {
@@ -70,7 +82,17 @@ app.get(/^\/https?:\/\/(.*)$/, async (req, res) => {
             url: fullUrl,
             responseType: 'stream'
         });
-        res.setHeader('Content-Type', response.headers['content-type']);
+
+        // Derive a safe filename (with extension) for the download so the
+        // browser knows what to open it with, even if the upstream URL's
+        // last path segment has no extension.
+        let filename = fullUrl.split('/').pop().split('?')[0] || 'document';
+        if (!/\.[a-zA-Z0-9]{2,5}$/.test(filename)) {
+            filename += '.pdf';
+        }
+
+        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         response.data.pipe(res);
     } catch (err) {
         console.error('Proxy fetch error:', err.message);
