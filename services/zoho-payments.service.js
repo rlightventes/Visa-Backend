@@ -58,10 +58,17 @@ class ZohoPaymentsService {
                 return this.accessToken;
             }
 
-            throw new Error('Failed to get access token from Zoho');
+            // FIX: Previously this threw a generic error without logging
+            // what Zoho actually sent back, hiding the real reason (e.g.
+            // invalid_client, invalid_code/refresh_token, invalid_scope).
+            console.error('Zoho token endpoint responded without an access_token:', response.data);
+            throw new Error(response.data?.error || 'Failed to get access token from Zoho');
         } catch (error) {
-            console.error('Error getting Zoho access token:', error.response?.data || error.message);
-            throw new Error('Failed to authenticate with Zoho');
+            const zohoDetail = error.response?.data || error.message;
+            console.error('Error getting Zoho access token:', zohoDetail);
+            const err = new Error('Failed to authenticate with Zoho');
+            err.zohoError = zohoDetail;
+            throw err;
         }
     }
 
