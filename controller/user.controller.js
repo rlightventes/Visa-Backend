@@ -1159,8 +1159,9 @@ exports.scanPassport = async (req, res) => {
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
     if (!allowedTypes.includes(req.file.mimetype)) {
-      // Clean up uploaded file
-      fs.unlinkSync(imagePath);
+      // NOTE: Files are uploaded directly to Cloudinary (no local temp file),
+      // so req.file.path is a remote URL, not a filesystem path. There is
+      // nothing to clean up locally here.
       return res.status(400).json({
         success: false,
         message: 'Invalid file type. Please upload a valid image file (JPEG, JPG, PNG, GIF)'
@@ -1169,8 +1170,6 @@ exports.scanPassport = async (req, res) => {
 
     // Validate file size (10MB limit)
     if (req.file.size > 10 * 1024 * 1024) {
-      // Clean up uploaded file
-      fs.unlinkSync(imagePath);
       return res.status(400).json({
         success: false,
         message: 'File size too large. Please upload an image smaller than 10MB'
@@ -1179,13 +1178,6 @@ exports.scanPassport = async (req, res) => {
 
     // Scan passport using Google Cloud Vision API
     const result = await passportService.scanPassport(imagePath);
-
-    // Clean up uploaded file after processing
-    try {
-      fs.unlinkSync(imagePath);
-    } catch (cleanupError) {
-      console.error('Error cleaning up uploaded file:', cleanupError);
-    }
 
     if (!result.success) {
       return res.status(500).json({
@@ -1207,15 +1199,6 @@ exports.scanPassport = async (req, res) => {
 
   } catch (error) {
     console.error('Error in passport scanning:', error);
-
-    // Clean up uploaded file if exists
-    if (req.file && req.file.path) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (cleanupError) {
-        console.error('Error cleaning up uploaded file:', cleanupError);
-      }
-    }
 
     return res.status(500).json({
       success: false,
@@ -1241,7 +1224,9 @@ exports.scanPassportWithValidation = async (req, res) => {
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(req.file.mimetype)) {
-      fs.unlinkSync(imagePath);
+      // NOTE: Files are uploaded directly to Cloudinary (no local temp file),
+      // so req.file.path is a remote URL, not a filesystem path. There is
+      // nothing to clean up locally here.
       return res.status(400).json({
         success: false,
         message: 'Invalid file type. Please upload a valid image file (JPEG, JPG, PNG)'
@@ -1250,7 +1235,6 @@ exports.scanPassportWithValidation = async (req, res) => {
 
     //also add check for image size should not more than 5mb
     if (req.file.size > 5 * 1024 * 1024) {
-      fs.unlinkSync(imagePath);
       return res.status(400).json({
         success: false,
         message: 'File size too large. Please upload an image smaller than 5MB'
@@ -1259,13 +1243,6 @@ exports.scanPassportWithValidation = async (req, res) => {
 
     // Scan passport using Gemini AI
     const result = await passportService.extractPassportWithGemini(imagePath);
-
-    // Clean up uploaded file after processing
-    try {
-      fs.unlinkSync(imagePath);
-    } catch (cleanupError) {
-      console.error('Error cleaning up uploaded file:', cleanupError);
-    }
 
     if (!result.success) {
       return res.status(500).json({
@@ -1338,15 +1315,6 @@ exports.scanPassportWithValidation = async (req, res) => {
 
   } catch (error) {
     console.error('Error in passport scanning with validation:', error);
-
-    // Clean up uploaded file if exists
-    if (req.file && req.file.path) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (cleanupError) {
-        console.error('Error cleaning up uploaded file:', cleanupError);
-      }
-    }
 
     return res.status(500).json({
       success: false,
