@@ -1195,19 +1195,23 @@ exports.getVisaApplicationDetails = async (req, res) => {
             });
         }
 
-        // FIX: Fix up every document URL (flight booking, hotel booking,
-        // passport photos, bank statements, etc.) so downloads always carry
-        // a proper filename + extension, instead of returning raw DB paths
-        // untouched as this endpoint previously did.
-        const documentFieldNames = [
+        // FIX (v2): The previous version applied fl_attachment (forced
+        // download) to EVERY document field, including passport/ID photos
+        // that need to display inline as <img> — that broke photo previews.
+        // Now only genuine downloadable documents (bookings, statements,
+        // certificates) get the forced-filename treatment; photos just get
+        // a clean resolved URL so they keep displaying inline as before.
+        const inlinePhotoFieldNames = [
             'passport_size_photo', 'passport_front_photo', 'passport_back_photo',
             'pan_card_photo', 'itr_1st_year_photo', 'itr_2nd_year_photo', 'itr_3rd_year_photo',
+            'aadhar_card', 'passport_external_cover'
+        ];
+        const downloadableDocFieldNames = [
             'vaccination_certificate', 'medical_insurance_certificate', 'employment_letter',
             'proof_of_funds', 'flight_booking', 'travel_insurance', 'travel_itinerary',
             'hotel_booking', 'invitation_letter', 'three_months_bank_statement',
             'six_months_bank_statement', 'three_months_bank_signed_and_stamped_statement',
-            'six_months_bank_signed_and_stamped_statement', 'aadhar_card',
-            'passport_external_cover', 'uploaded_document'
+            'six_months_bank_signed_and_stamped_statement', 'uploaded_document'
         ];
 
         const applicationData = application.toJSON();
@@ -1219,7 +1223,12 @@ exports.getVisaApplicationDetails = async (req, res) => {
         if (Array.isArray(applicationData.visa_application_fields)) {
             applicationData.visa_application_fields = applicationData.visa_application_fields.map(field => {
                 const updatedField = { ...field };
-                documentFieldNames.forEach(fieldName => {
+                inlinePhotoFieldNames.forEach(fieldName => {
+                    if (updatedField[fieldName]) {
+                        updatedField[fieldName] = resolveImageUrl(updatedField[fieldName]);
+                    }
+                });
+                downloadableDocFieldNames.forEach(fieldName => {
                     if (updatedField[fieldName]) {
                         updatedField[fieldName] = withDownloadFilename(resolveImageUrl(updatedField[fieldName]));
                     }
