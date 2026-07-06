@@ -3,15 +3,10 @@ const resolveImageUrl = (imagePath) => {
     const cleanPath = imagePath.trim();
     if (!cleanPath) return '';
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-        // FIX: Removed the blind '/image/upload/' -> '/raw/upload/' replace for
-        // PDFs. That replace assumed every PDF was stored on Cloudinary as
-        // resource_type 'raw', but PDFs uploaded before the upload.middleware.js
-        // fix (or with a misreported mimetype) are actually stored as 'image'.
-        // Rewriting their URL to /raw/upload/ pointed at a resource that
-        // doesn't exist there, causing "Failed to fetch resource" errors.
-        // Now that upload.middleware.js reliably tags PDFs with resource_type
-        // 'raw' at upload time, the stored URL is already correct — just
-        // return it as-is.
+        // Cloudinary PDF fix: /image/upload/ → /raw/upload/
+        if (cleanPath.includes('res.cloudinary.com') && cleanPath.endsWith('.pdf')) {
+            return cleanPath.replace('/image/upload/', '/raw/upload/');
+        }
         return cleanPath;
     }
     if (cleanPath.startsWith('/opt/') || cleanPath.startsWith('/var/') || cleanPath.startsWith('/home/') || cleanPath.startsWith('/root/')) {
@@ -2664,8 +2659,17 @@ exports.createVisaApplication = async (req, res) => {
             zohoSession = await zohoPaymentsService.createPaymentSession(zohoSessionOptions);
         } catch (sessionError) {
             await transaction.rollback();
-            console.error('Zoho payment session creation error:', sessionError);
-            return res.status(500).json({ success: false, message: 'Failed to create payment session. Please try again.' });
+            // FIX: Surface a clearer, actionable message instead of a bare
+            // 500. The underlying Zoho error (e.g. invalid_account_id,
+            // auth failure) is still logged in full for debugging, but the
+            // vendor/user sees a message that makes clear this is a payment
+            // gateway issue on our side, not something they did wrong.
+            console.error('Zoho payment session creation error:', sessionError.zohoError || sessionError.message);
+            return res.status(503).json({
+                success: false,
+                message: 'Payment gateway is temporarily unavailable. Please try again in a few minutes or contact support if this continues.',
+                code: 'PAYMENT_GATEWAY_UNAVAILABLE'
+            });
         }
 
         // Update payment record with Zoho order details
@@ -3517,8 +3521,17 @@ exports.submitVendorVisaApplication = async (req, res) => {
             zohoSession = await zohoPaymentsService.createPaymentSession(zohoSessionOptions);
         } catch (sessionError) {
             await transaction.rollback();
-            console.error('Zoho payment session creation error:', sessionError);
-            return res.status(500).json({ success: false, message: 'Failed to create payment session. Please try again.' });
+            // FIX: Surface a clearer, actionable message instead of a bare
+            // 500. The underlying Zoho error (e.g. invalid_account_id,
+            // auth failure) is still logged in full for debugging, but the
+            // vendor/user sees a message that makes clear this is a payment
+            // gateway issue on our side, not something they did wrong.
+            console.error('Zoho payment session creation error:', sessionError.zohoError || sessionError.message);
+            return res.status(503).json({
+                success: false,
+                message: 'Payment gateway is temporarily unavailable. Please try again in a few minutes or contact support if this continues.',
+                code: 'PAYMENT_GATEWAY_UNAVAILABLE'
+            });
         }
 
         // Update payment record with Zoho order details
@@ -6064,8 +6077,17 @@ exports.completeVisaApplicationPayment = async (req, res) => {
             zohoSession = await zohoPaymentsService.createPaymentSession(zohoSessionOptions);
         } catch (sessionError) {
             await transaction.rollback();
-            console.error('Zoho payment session creation error:', sessionError);
-            return res.status(500).json({ success: false, message: 'Failed to create payment session. Please try again.' });
+            // FIX: Surface a clearer, actionable message instead of a bare
+            // 500. The underlying Zoho error (e.g. invalid_account_id,
+            // auth failure) is still logged in full for debugging, but the
+            // vendor/user sees a message that makes clear this is a payment
+            // gateway issue on our side, not something they did wrong.
+            console.error('Zoho payment session creation error:', sessionError.zohoError || sessionError.message);
+            return res.status(503).json({
+                success: false,
+                message: 'Payment gateway is temporarily unavailable. Please try again in a few minutes or contact support if this continues.',
+                code: 'PAYMENT_GATEWAY_UNAVAILABLE'
+            });
         }
 
         // Update payment record with Zoho order details
