@@ -5862,11 +5862,12 @@ exports.getVisaApplicationDraft = async (req, res) => {
             });
         }
 
-        // FIX: This endpoint was returning raw DB document paths untouched
-        // (no resolveImageUrl, no download-filename fix), so PDFs downloaded
-        // from a draft application had no extension and looked corrupt/binary
-        // when opened. docUrl() applies both fixes consistently here.
+        // FIX (v2): Forcing fl_attachment on EVERY field (including photos
+        // meant to display inline as <img>) broke photo previews. Now only
+        // genuine downloadable documents get the forced-filename treatment;
+        // photos just get a clean resolved URL.
         const docUrl = (v) => v ? withDownloadFilename(resolveImageUrl(v)) : v;
+        const photoUrl = (v) => v ? resolveImageUrl(v) : v;
 
         const travelers = draftApplication.visa_application_fields.map(traveller => ({
             first_name: traveller.first_name,
@@ -5890,13 +5891,13 @@ exports.getVisaApplicationDraft = async (req, res) => {
             passport_issue_place: traveller.passport_issue_place,
 
             // File paths
-            passport_size_photo: docUrl(traveller.passport_size_photo),
-            passport_front_photo: docUrl(traveller.passport_front_photo),
-            passport_back_photo: docUrl(traveller.passport_back_photo),
-            pan_card_photo: docUrl(traveller.pan_card_photo),
-            itr_1st_year_photo: docUrl(traveller.itr_1st_year_photo),
-            itr_2nd_year_photo: docUrl(traveller.itr_2nd_year_photo),
-            itr_3rd_year_photo: docUrl(traveller.itr_3rd_year_photo),
+            passport_size_photo: photoUrl(traveller.passport_size_photo),
+            passport_front_photo: photoUrl(traveller.passport_front_photo),
+            passport_back_photo: photoUrl(traveller.passport_back_photo),
+            pan_card_photo: photoUrl(traveller.pan_card_photo),
+            itr_1st_year_photo: photoUrl(traveller.itr_1st_year_photo),
+            itr_2nd_year_photo: photoUrl(traveller.itr_2nd_year_photo),
+            itr_3rd_year_photo: photoUrl(traveller.itr_3rd_year_photo),
             vaccination_certificate: docUrl(traveller.vaccination_certificate),
             medical_insurance_certificate: docUrl(traveller.medical_insurance_certificate),
             employment_letter: docUrl(traveller.employment_letter),
@@ -5910,8 +5911,8 @@ exports.getVisaApplicationDraft = async (req, res) => {
             six_months_bank_statement: docUrl(traveller.six_months_bank_statement),
             three_months_bank_signed_and_stamped_statement: docUrl(traveller.three_months_bank_signed_and_stamped_statement),
             six_months_bank_signed_and_stamped_statement: docUrl(traveller.six_months_bank_signed_and_stamped_statement),
-            aadhar_card: docUrl(traveller.aadhar_card),
-            passport_external_cover: docUrl(traveller.passport_external_cover),
+            aadhar_card: photoUrl(traveller.aadhar_card),
+            passport_external_cover: photoUrl(traveller.passport_external_cover),
 
             // Additional fields
             visa_type: traveller.visa_type,
