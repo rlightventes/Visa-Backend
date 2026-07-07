@@ -16,33 +16,19 @@ const resolveImageUrl = (imagePath) => {
     return `${baseUrl}${filePath}`;
 };
 
-// FIX (v3): Cloudinary does NOT support URL-based transformations
-// (including delivery flags like fl_attachment) on resource_type: 'raw'
-// assets — only on 'image'/'video'. Inserting fl_attachment:<filename>
-// into a /raw/upload/ URL causes Cloudinary to reject the request, which
-// makes our own /https://... proxy route in app.js throw and return a
-// 502. Since our PDFs (flight bookings, bank statements, etc.) are always
-// uploaded as resource_type 'raw' (see upload.middleware.js), we must NOT
-// apply fl_attachment to raw URLs. The proxy route in app.js now sets
-// Content-Disposition itself, so we just return the resolved URL as-is
-// for raw assets.
+// FIX (v4): fl_attachment triggers Cloudinary's on-the-fly transformation
+// restrictions (blocked when "Strict Transformations" is enabled), since
+// every upload has a unique filename and each fl_attachment:<filename>
+// counts as a brand-new, never-whitelisted transformation. This affected
+// raw PDFs first, and the same problem hits image uploads (jpg/png) like
+// flight_booking photos too.
+//
+// Our own proxy route in app.js already sets Content-Disposition on the
+// response to force a proper download filename, so we no longer need
+// Cloudinary to do any URL-based transformation at all. Just return the
+// resolved URL as-is for every resource type.
 const withDownloadFilename = (url) => {
-    if (!url || typeof url !== 'string') return url;
-    if (!url.includes('res.cloudinary.com')) return url;
-    if (url.includes('/raw/upload/')) return url;
-
-    const uploadMarker = '/upload/';
-    const idx = url.indexOf(uploadMarker);
-    if (idx === -1) return url;
-
-    const afterUpload = url.substring(idx + uploadMarker.length);
-    // Skip past any existing transformation/attachment segment already present
-    const segments = afterUpload.split('/');
-    let lastSegment = segments[segments.length - 1] || '';
-    const hasExtension = /\.[a-zA-Z0-9]{2,5}$/.test(lastSegment);
-    const filename = hasExtension ? lastSegment : `${lastSegment}.pdf`;
-
-    return `${url.substring(0, idx + uploadMarker.length)}fl_attachment:${encodeURIComponent(filename)}/${afterUpload}`;
+    return url;
 };
 
 
