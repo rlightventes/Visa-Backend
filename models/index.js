@@ -2,8 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const Sequelize = require('sequelize');
 const basename = path.basename(__filename);
-const env = process.env.NODE_ENV || 'development';
-const config = require(__dirname + '/../config/config.js')[env];
+const env = (process.env.NODE_ENV || 'development').trim().toLowerCase();
+const configs = require(__dirname + '/../config/config.js');
+const config = configs[env] || configs.development;
+
+if (!config) {
+    throw new Error(`Database configuration not found for NODE_ENV=${env}`);
+}
 const db = {};
 
 // Initialize Sequelize
