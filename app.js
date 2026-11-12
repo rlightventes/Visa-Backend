@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const https = require('https');
 const morgan = require('morgan');
 const path = require('path');
 const net = require('net');
@@ -232,6 +233,138 @@ app.use(
     require('./routes/support.routes')
 );
 
+
+
+// ======================================================
+// CLOUDINARY FILE PROXY
+// ======================================================
+// Safely serves only files from this project's Cloudinary account.
+// Use ?download=1 to force download; otherwise files are served inline.
+const normalizeCloudinaryUrl = (value) => {
+    if (!value) return '';
+
+    let url = String(value).trim();
+    const marker = 'https://res.cloudinary.com/';
+    const markerIndex = url.lastIndexOf(marker);
+
+    // Handles accidentally prefixed values such as:
+    // https://api.stellarevisa.com/https://res.cloudinary.com/...
+    if (markerIndex >= 0) {
+        url = url.substring(markerIndex);
+    }
+
+    return url;
+};
+
+const sanitizeDownloadFilename = (value) => {
+    return String(value || 'document')
+        .replace(/[\r\n"]/g, '')
+        .replace(/[\\/:*?<>|]/g, '_')
+        .slice(0, 180) || 'document';
+};
+
+app.get('/file-proxy', (req, res) => {
+    const fileUrl = normalizeCloudinaryUrl(req.query.url);
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+
+    if (!fileUrl || !cloudName) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid file request'
+        });
+    }
+
+    let parsed;
+    try {
+        parsed = new URL(fileUrl);
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid file URL'
+        });
+    }
+
+    // Prevent SSRF: only allow this project's Cloudinary delivery host/path.
+    if (
+        parsed.protocol !== 'https:' ||
+        parsed.hostname !== 'res.cloudinary.com' ||
+        !parsed.pathname.startsWith(`/${cloudName}/`)
+    ) {
+        return res.status(403).json({
+            success: false,
+            message: 'File host not allowed'
+        });
+    }
+
+    const requestedName = sanitizeDownloadFilename(
+        req.query.filename ||
+        decodeURIComponent(parsed.pathname.split('/').pop() || 'document')
+    );
+
+    const disposition = req.query.download === '1' ? 'attachment' : 'inline';
+
+    const pipeCloudinary = (url, redirects = 0) => {
+        if (redirects > 3) {
+            return res.status(502).json({
+                success: false,
+                message: 'Too many redirects while fetching file'
+            });
+        }
+
+        const upstreamRequest = https.get(url, (upstream) => {
+            const statusCode = upstream.statusCode || 500;
+
+            if ([301, 302, 307, 308].includes(statusCode) && upstream.headers.location) {
+                upstream.resume();
+                const redirectUrl = new URL(upstream.headers.location, url).toString();
+                return pipeCloudinary(redirectUrl, redirects + 1);
+            }
+
+            if (statusCode < 200 || statusCode >= 300) {
+                upstream.resume();
+                return res.status(statusCode).json({
+                    success: false,
+                    message: `Cloudinary returned HTTP ${statusCode}`
+                });
+            }
+
+            if (upstream.headers['content-type']) {
+                res.setHeader('Content-Type', upstream.headers['content-type']);
+            }
+
+            if (upstream.headers['content-length']) {
+                res.setHeader('Content-Length', upstream.headers['content-length']);
+            }
+
+            res.setHeader(
+                'Content-Disposition',
+                `${disposition}; filename="${requestedName}"`
+            );
+            res.setHeader('Cache-Control', 'private, max-age=60');
+
+            upstream.pipe(res);
+        });
+
+        upstreamRequest.setTimeout(20000, () => {
+            upstreamRequest.destroy(new Error('Cloudinary request timed out'));
+        });
+
+        upstreamRequest.on('error', (error) => {
+            console.error('Cloudinary file proxy error:', error.message);
+
+            if (!res.headersSent) {
+                return res.status(502).json({
+                    success: false,
+                    message: 'Unable to fetch document'
+                });
+            }
+
+            res.end();
+        });
+    };
+
+    return pipeCloudinary(fileUrl);
+});
 
 // ======================================================
 // STATIC FILES
